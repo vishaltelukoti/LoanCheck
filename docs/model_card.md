@@ -15,3 +15,5 @@ Logistic regression provides an interpretable linear baseline. A decision tree c
 | Random forest | 0.8537 | 0.8681 | 0.9294 | 0.8977 | 0.8605 |
 
 Logistic regression was selected as the current champion because it has the highest accuracy (0.8618) while exceeding both development quality bars. Its recall and F1 score are also the strongest of the candidates, and its simpler, interpretable form makes it a suitable baseline for this project.
+
+Champion promoted to version 2 manually — tied version 1 on all metrics but was trained from a clean (non-dirty) git commit, which the automated promotion rule doesn't account for.
