@@ -22,10 +22,13 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "mypy",
+    "pandas-stubs",
     "pre-commit",
     "pytest",
     "pytest-cov",
     "ruff",
+    "scikit-learn-stubs",
+    "types-pyyaml",
 ]
 
 [tool.ruff]

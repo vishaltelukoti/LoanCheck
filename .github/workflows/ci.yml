@@ -54,10 +54,41 @@ jobs:
           name: coverage-report
           path: coverage.xml
 
-  # data-check:
-  # added in Task 4
-  #   runs-on: ubuntu-latest
-  #   steps: []
+  data-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - run: uv sync
+      - name: Run raw data quality checks
+        if: ${{ hashFiles('data/raw/loan_train.csv') != '' && hashFiles('data/raw/loan_scoring.csv') != '' }}
+        run: uv run python scripts/run_data_checks.py
+      - name: Explain unavailable raw data
+        if: ${{ hashFiles('data/raw/loan_train.csv') == '' || hashFiles('data/raw/loan_scoring.csv') == '' }}
+        run: echo "::warning::Raw data is unavailable in this checkout; Task 5 will provide it via DVC."
+      # The static Kaggle split's income PSI warnings are expected and documented in docs/model_card.md.
+      - name: Enforce data quality status
+        if: ${{ hashFiles('reports/data_quality.json') != '' }}
+        run: |
+          status="$(uv run python -c "import json; print(json.load(open('reports/data_quality.json'))['overall_status'])")"
+          echo "Data quality status: ${status}"
+          if [ "${status}" = "fail" ]; then
+            exit 1
+          fi
+          if [ "${status}" = "warn" ]; then
+            echo "::warning::Data quality status is warn; see reports/data_quality.json."
+          fi
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && hashFiles('reports/data_quality.json') != '' }}
+        with:
+          name: data-quality-report
+          path: reports/data_quality.json
 
   # pipeline:
   # added in Task 5
