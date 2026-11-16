@@ -1,1 +1,6 @@
-# TODO: settings for staging, see docs/charter.md section 7
+environment: staging
+log_level: INFO
+mlflow_tracking_uri: http://mlflow-staging:5000
+model_quality_bar_accuracy: 0.78
+model_quality_bar_roc_auc: 0.75
+data_dir: data/raw
