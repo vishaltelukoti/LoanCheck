@@ -1,7 +1,5 @@
 # LoanCheck — Model Card
 
-<!-- TODO: Fill in during Task 6. -->
-
 Current PSI warnings for ApplicantIncome and CoapplicantIncome are expected for the static Kaggle train/test split because income is skewed and checked with a small bin count; this is not a bug to fix.
 
 ## Model comparison
