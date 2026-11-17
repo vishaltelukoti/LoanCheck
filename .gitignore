@@ -218,6 +218,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-data/
+# DVC keeps raw source-data pointers in Git while excluding the data itself.
+data/interim/
+data/processed/
+data/raw/*
+!data/raw/.gitignore
+!data/raw/*.dvc
 mlflow.db
 mlruns/
