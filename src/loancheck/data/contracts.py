@@ -6,7 +6,6 @@
 import pandas as pd
 import pandera.pandas as pa
 
-
 LOAN_APPLICATION_SCHEMA = pa.DataFrameSchema(
     {
         "Loan_ID": pa.Column(pa.String, unique=True),
