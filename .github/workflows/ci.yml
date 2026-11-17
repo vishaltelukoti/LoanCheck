@@ -66,12 +66,18 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
       - run: uv sync
+      # The configured remote is ../dvc-storage/loancheck, which is unavailable on
+      # hosted GitHub runners. This succeeds on a self-hosted runner with that
+      # directory restored, but requires a cloud remote (S3/Azure/GDrive) for CI.
+      - name: Pull DVC data (requires reachable remote)
+        continue-on-error: true
+        run: dvc pull
       - name: Run raw data quality checks
         if: ${{ hashFiles('data/raw/loan_train.csv') != '' && hashFiles('data/raw/loan_scoring.csv') != '' }}
         run: uv run python scripts/run_data_checks.py
       - name: Explain unavailable raw data
         if: ${{ hashFiles('data/raw/loan_train.csv') == '' || hashFiles('data/raw/loan_scoring.csv') == '' }}
-        run: echo "::warning::Raw data is unavailable in this checkout; Task 5 will provide it via DVC."
+        run: echo "::warning::Raw data is unavailable. The configured local DVC remote cannot be reached by hosted CI until a cloud remote is configured."
       # The static Kaggle split's income PSI warnings are expected and documented in docs/model_card.md.
       - name: Enforce data quality status
         if: ${{ hashFiles('reports/data_quality.json') != '' }}
