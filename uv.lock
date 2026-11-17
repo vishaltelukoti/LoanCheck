@@ -1988,10 +1988,13 @@ source = { editable = "." }
 dependencies = [
     { name = "dvc" },
     { name = "fastapi" },
+    { name = "matplotlib" },
     { name = "mlflow" },
+    { name = "numpy" },
     { name = "pandas" },
     { name = "pandera" },
     { name = "pydantic-settings" },
+    { name = "pyyaml" },
     { name = "scikit-learn" },
     { name = "uvicorn" },
 ]
@@ -2012,10 +2015,13 @@ dev = [
 requires-dist = [
     { name = "dvc" },
     { name = "fastapi" },
+    { name = "matplotlib" },
     { name = "mlflow" },
+    { name = "numpy" },
     { name = "pandas" },
     { name = "pandera" },
     { name = "pydantic-settings" },
+    { name = "pyyaml" },
     { name = "scikit-learn" },
     { name = "uvicorn" },
 ]
