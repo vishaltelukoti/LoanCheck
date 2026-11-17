@@ -96,10 +96,26 @@ jobs:
           name: data-quality-report
           path: reports/data_quality.json
 
-  # pipeline:
-  # added in Task 5
-  #   runs-on: ubuntu-latest
-  #   steps: []
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - run: uv sync
+      # The configured local remote cannot be reached by hosted GitHub runners.
+      # A cloud remote is required here, or a self-hosted runner must restore
+      # ../dvc-storage/loancheck before this workflow runs.
+      - name: Pull DVC data (requires reachable remote)
+        continue-on-error: true
+        run: dvc pull
+      - name: Reproduce DVC pipeline
+        run: dvc repro
 
   # docker:
   # added in Task 7
