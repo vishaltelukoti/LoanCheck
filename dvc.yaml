@@ -35,11 +35,13 @@ stages:
     outs:
       - data/processed/train_features.csv
       - data/processed/test_features.csv
+      - data/processed/missing_value_stats.json
 
   train:
     cmd: uv run python scripts/run_train.py
     deps:
       - data/processed/train_features.csv
+      - data/processed/missing_value_stats.json
       - scripts/run_train.py
       - src/loancheck/models/train.py
     params:
@@ -47,6 +49,7 @@ stages:
       - random_seed
     outs:
       - models/model.pkl
+      - models/missing_value_stats.json
 
   evaluate:
     cmd: uv run python scripts/run_evaluate.py

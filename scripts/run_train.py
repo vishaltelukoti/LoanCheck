@@ -11,6 +11,7 @@ import mlflow
 import mlflow.sklearn
 import pandas as pd
 import yaml
+from joblib import dump
 from mlflow.exceptions import MlflowException
 from mlflow.models import infer_signature
 from sklearn.metrics import ConfusionMatrixDisplay
@@ -23,6 +24,9 @@ from loancheck.models.train import train_model
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TRAIN_FEATURES_PATH = PROJECT_ROOT / "data" / "processed" / "train_features.csv"
 TEST_FEATURES_PATH = PROJECT_ROOT / "data" / "processed" / "test_features.csv"
+MISSING_VALUE_STATS_INPUT_PATH = PROJECT_ROOT / "data" / "processed" / "missing_value_stats.json"
+MISSING_VALUE_STATS_OUTPUT_PATH = PROJECT_ROOT / "models" / "missing_value_stats.json"
+MODEL_OUTPUT_PATH = PROJECT_ROOT / "models" / "model.pkl"
 PARAMS_PATH = PROJECT_ROOT / "params.yaml"
 EXPERIMENT_NAME = "loancheck"
 MODEL_TYPES = ("logistic_regression", "decision_tree", "random_forest")
@@ -139,12 +143,21 @@ def main() -> None:
     mlflow.set_experiment(EXPERIMENT_NAME)
     training_data = pd.read_csv(TRAIN_FEATURES_PATH)
     test_data = pd.read_csv(TEST_FEATURES_PATH)
+    if not MISSING_VALUE_STATS_INPUT_PATH.exists():
+        msg = f"Missing fitted imputation statistics: {MISSING_VALUE_STATS_INPUT_PATH}"
+        raise FileNotFoundError(msg)
+    MISSING_VALUE_STATS_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    MISSING_VALUE_STATS_OUTPUT_PATH.write_text(
+        MISSING_VALUE_STATS_INPUT_PATH.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
     X_train = training_data.drop(columns="Loan_Status")
     y_train = training_data["Loan_Status"]
     X_test = test_data.drop(columns="Loan_Status")
     y_test = test_data["Loan_Status"]
     dataset = mlflow.data.from_pandas(training_data, source=str(TRAIN_FEATURES_PATH))
     results: list[ModelResult] = []
+    pipelines: dict[str, object] = {}
 
     for model_type in MODEL_TYPES:
         with mlflow.start_run(run_name=model_type) as run:
@@ -176,9 +189,14 @@ def main() -> None:
                 # MLflow's default skops serializer refuses to load in MLflow 3.x.
                 serialization_format=mlflow.sklearn.SERIALIZATION_FORMAT_PICKLE,
             )
+            pipelines[model_type] = pipeline
             results.append(ModelResult(model_type, run.info.run_id, metrics))
 
     challenger, champion_changed = _promote_challenger(results, settings)
+    if challenger is None:
+        msg = "No model qualified for persistence as the DVC training output."
+        raise RuntimeError(msg)
+    dump(pipelines[challenger], MODEL_OUTPUT_PATH)
     _print_summary(results, challenger, champion_changed)
 
 

@@ -45,8 +45,8 @@ stages:
       size: 1780
     - path: src/loancheck/data/missing_values.py
       hash: md5
-      md5: ddbbe9ff5ab5cb22aab5505ddbb50283
-      size: 1562
+      md5: 5566eb966942a02898e38c87697ee542
+      size: 3112
     outs:
     - path: reports/data_quality.json
       hash: md5
@@ -61,28 +61,32 @@ stages:
       size: 42749
     - path: scripts/run_featurize.py
       hash: md5
-      md5: 9d8312d9fe2f5e68fce18e1f7b13d1c2
-      size: 1645
+      md5: 21af5c6898a3d2ad70c8955f5d9ea085
+      size: 2056
     - path: src/loancheck/data/contracts.py
       hash: md5
       md5: e934c4a5da4fda262a285807ae6608d5
       size: 2270
     - path: src/loancheck/data/missing_values.py
       hash: md5
-      md5: ddbbe9ff5ab5cb22aab5505ddbb50283
-      size: 1562
+      md5: 5566eb966942a02898e38c87697ee542
+      size: 3112
     - path: src/loancheck/features/build_features.py
       hash: md5
-      md5: 582a789f1040cf4ca60f25296d279f43
-      size: 852
+      md5: 867b1f08301569c503806937fba3fa41
+      size: 1183
     params:
       params.yaml:
         random_seed: 42
         test_size: 0.2
     outs:
+    - path: data/processed/missing_value_stats.json
+      hash: md5
+      md5: 89b70022c39fe4fb4fd7a27e1e6cf3aa
+      size: 130
     - path: data/processed/test_features.csv
       hash: md5
-      md5: 716e059ce3a58778afb56ebf90204ee0
+      md5: 2b465e2df74e111cd78fdabe57b37029
       size: 10404
     - path: data/processed/train_features.csv
       hash: md5
@@ -91,14 +95,18 @@ stages:
   train:
     cmd: uv run python scripts/run_train.py
     deps:
+    - path: data/processed/missing_value_stats.json
+      hash: md5
+      md5: 89b70022c39fe4fb4fd7a27e1e6cf3aa
+      size: 130
     - path: data/processed/train_features.csv
       hash: md5
       md5: 8e5632e45ae3fb973d5d869b238981ba
       size: 40941
     - path: scripts/run_train.py
       hash: md5
-      md5: 70b6be03363744ee2e9399b9bc8ffebc
-      size: 995
+      md5: bcc21b1dba065a022d57cd7fe6eb71ca
+      size: 8517
     - path: src/loancheck/models/train.py
       hash: md5
       md5: cc8fb43a1972055d94ce9adc412d5a0f
@@ -110,21 +118,25 @@ stages:
           quality_bar_roc_auc: 0.75
         random_seed: 42
     outs:
+    - path: models/missing_value_stats.json
+      hash: md5
+      md5: 89b70022c39fe4fb4fd7a27e1e6cf3aa
+      size: 130
     - path: models/model.pkl
       hash: md5
-      md5: 587395a7ff18284ed98479060b3efcc2
-      size: 3448658
+      md5: eea3df9552397b143929cc83546c5bd7
+      size: 4689
   evaluate:
     cmd: uv run python scripts/run_evaluate.py
     deps:
     - path: data/processed/test_features.csv
       hash: md5
-      md5: 716e059ce3a58778afb56ebf90204ee0
+      md5: 2b465e2df74e111cd78fdabe57b37029
       size: 10404
     - path: models/model.pkl
       hash: md5
-      md5: 587395a7ff18284ed98479060b3efcc2
-      size: 3448658
+      md5: eea3df9552397b143929cc83546c5bd7
+      size: 4689
     - path: scripts/run_evaluate.py
       hash: md5
       md5: c2704896071a2bd49a4b8c862b5473df
@@ -136,5 +148,5 @@ stages:
     outs:
     - path: reports/metrics.json
       hash: md5
-      md5: 253b4cca09a0e2c3051336b1eb4f260b
-      size: 170
+      md5: 1fc2b4bc3845c4b0aef67cfd16b16fc4
+      size: 155
