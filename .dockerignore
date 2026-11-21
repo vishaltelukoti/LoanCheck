@@ -4,6 +4,7 @@ data/
 .venv
 .env
 mlruns/
+mlartifacts/
 mlflow.db
 notebooks
 tests/
