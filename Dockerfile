@@ -23,6 +23,7 @@ RUN apt-get update \
 COPY --from=builder /app/.venv /app/.venv
 COPY src/ ./src/
 COPY configs/ ./configs/
+COPY models/missing_value_stats.json ./models/missing_value_stats.json
 
 USER 10001
 
