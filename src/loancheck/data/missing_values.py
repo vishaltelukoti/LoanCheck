@@ -3,6 +3,7 @@
 # LoanAmount uses the median because loan amounts are skewed by outliers; the
 # categorical and binary fields use their mode to retain their most common value.
 
+from numbers import Real
 from typing import cast
 
 import pandas as pd
@@ -47,13 +48,15 @@ def fit_missing_value_stats(df: pd.DataFrame) -> dict[str, object]:
     return stats
 
 
-def _get_stat(stats: dict[str, object], column: str) -> str | float | int:
+def _get_stat(stats: dict[str, object], column: str) -> str | float:
     """Return a pandas-compatible fitted value for one required column."""
     value = stats[column]
-    if not isinstance(value, str | float | int):
-        msg = f"Invalid imputation stat for {column}: {value!r}"
-        raise TypeError(msg)
-    return value
+    if isinstance(value, str):
+        return value
+    if isinstance(value, Real):
+        return float(value)
+    msg = f"Invalid imputation stat for {column}: {value!r}"
+    raise TypeError(msg)
 
 
 def apply_missing_value_fill(df: pd.DataFrame, stats: dict[str, object]) -> pd.DataFrame:

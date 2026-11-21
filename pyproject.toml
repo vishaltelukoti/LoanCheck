@@ -24,6 +24,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "httpx2",
     "mypy",
     "pandas-stubs",
     "pre-commit",

@@ -20,6 +20,12 @@ def main() -> None:
             "0.0.0.0",
             "--port",
             "5000",
+            # MLflow multi-worker subprocess startup is unreliable on Windows.
+            "--workers",
+            "1",
+            "--allowed-hosts",
+            # MLflow matches Host headers as host:port unless the port wildcard is used.
+            "localhost:*,127.0.0.1:*,host.docker.internal:*",
         ],
         check=True,
     )
