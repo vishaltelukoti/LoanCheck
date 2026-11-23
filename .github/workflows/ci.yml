@@ -115,7 +115,11 @@ jobs:
         continue-on-error: true
         run: uv run dvc pull
       - name: Reproduce DVC pipeline
+        if: ${{ hashFiles('data/raw/loan_train.csv') != '' }}
         run: uv run dvc repro
+      - name: Explain unavailable DVC data
+        if: ${{ hashFiles('data/raw/loan_train.csv') == '' }}
+        run: echo "::warning::DVC pipeline reproduction skipped because the configured local remote is unreachable from hosted CI. Configure a cloud remote to enable this step."
 
   docker:
     runs-on: ubuntu-latest
@@ -124,10 +128,29 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - run: uv sync
+      - name: Pull DVC-tracked model artifacts (requires reachable remote)
+        continue-on-error: true
+        run: uv run dvc pull
+      - name: Check model artifact availability
+        id: model-artifact
+        run: |
+          if [ -f models/missing_value_stats.json ]; then
+            echo "artifact_available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "artifact_available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Docker build, scan, SBOM, and push are skipped because the configured local DVC remote is unreachable from hosted CI. Configure a cloud remote to enable these steps."
+          fi
       - uses: docker/setup-buildx-action@v3
       - name: Build image
+        if: ${{ steps.model-artifact.outputs.artifact_available == 'true' }}
         run: docker build -t loancheck:${{ github.sha }} .
       - name: Scan image with Trivy
+        if: ${{ steps.model-artifact.outputs.artifact_available == 'true' }}
         # Pinned to v0.35.0, the first release protected by GitHub's immutable-release feature after the March 2026 trivy-action
         # supply-chain compromise (GHSA-69fq-xp46-6x23) — do not reference an unprefixed version tag older than this.
         uses: aquasecurity/trivy-action@v0.35.0
@@ -139,21 +162,21 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
       - name: Upload Trivy report
-        if: ${{ always() }}
+        if: ${{ always() && steps.model-artifact.outputs.artifact_available == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: trivy-report
           path: trivy-report.json
           if-no-files-found: warn
       - name: Generate SPDX SBOM
-        if: ${{ always() }}
+        if: ${{ always() && steps.model-artifact.outputs.artifact_available == 'true' }}
         uses: anchore/sbom-action@v0
         with:
           image: loancheck:${{ github.sha }}
           format: spdx-json
           output-file: sbom.spdx.json
       - name: Upload SBOM
-        if: ${{ always() }}
+        if: ${{ always() && steps.model-artifact.outputs.artifact_available == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: sbom
@@ -162,14 +185,14 @@ jobs:
       # No container smoke test: API startup requires the MLflow champion model, but
       # hosted CI cannot reach the local MLflow server. This test is run locally.
       - name: Log in to GitHub Container Registry
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ steps.model-artifact.outputs.artifact_available == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Tag and push image
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ steps.model-artifact.outputs.artifact_available == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         run: |
           docker tag loancheck:${{ github.sha }} ghcr.io/vishaltelukoti/loancheck:${{ github.sha }}
           docker tag loancheck:${{ github.sha }} ghcr.io/vishaltelukoti/loancheck:latest
