@@ -117,7 +117,59 @@ jobs:
       - name: Reproduce DVC pipeline
         run: dvc repro
 
-  # docker:
-  # added in Task 7
-  #   runs-on: ubuntu-latest
-  #   steps: []
+  docker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        run: docker build -t loancheck:${{ github.sha }} .
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: loancheck:${{ github.sha }}
+          format: json
+          output: trivy-report.json
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Upload Trivy report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.json
+          if-no-files-found: warn
+      - name: Generate SPDX SBOM
+        if: ${{ always() }}
+        uses: anchore/sbom-action@v0
+        with:
+          image: loancheck:${{ github.sha }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+      - name: Upload SBOM
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json
+          if-no-files-found: warn
+      # No container smoke test: API startup requires the MLflow champion model, but
+      # hosted CI cannot reach the local MLflow server. This test is run locally.
+      - name: Log in to GitHub Container Registry
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag and push image
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: |
+          docker tag loancheck:${{ github.sha }} ghcr.io/vishaltelukoti/loancheck:${{ github.sha }}
+          docker tag loancheck:${{ github.sha }} ghcr.io/vishaltelukoti/loancheck:latest
+          docker push ghcr.io/vishaltelukoti/loancheck:${{ github.sha }}
+          docker push ghcr.io/vishaltelukoti/loancheck:latest
