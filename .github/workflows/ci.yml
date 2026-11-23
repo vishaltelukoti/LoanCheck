@@ -71,7 +71,7 @@ jobs:
       # directory restored, but requires a cloud remote (S3/Azure/GDrive) for CI.
       - name: Pull DVC data (requires reachable remote)
         continue-on-error: true
-        run: dvc pull
+        run: uv run dvc pull
       - name: Run raw data quality checks
         if: ${{ hashFiles('data/raw/loan_train.csv') != '' && hashFiles('data/raw/loan_scoring.csv') != '' }}
         run: uv run python scripts/run_data_checks.py
@@ -113,9 +113,9 @@ jobs:
       # ../dvc-storage/loancheck before this workflow runs.
       - name: Pull DVC data (requires reachable remote)
         continue-on-error: true
-        run: dvc pull
+        run: uv run dvc pull
       - name: Reproduce DVC pipeline
-        run: dvc repro
+        run: uv run dvc repro
 
   docker:
     runs-on: ubuntu-latest
@@ -128,7 +128,9 @@ jobs:
       - name: Build image
         run: docker build -t loancheck:${{ github.sha }} .
       - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@0.33.1
+        # Pinned to v0.35.0, the first release protected by GitHub's immutable-release feature after the March 2026 trivy-action
+        # supply-chain compromise (GHSA-69fq-xp46-6x23) — do not reference an unprefixed version tag older than this.
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: loancheck:${{ github.sha }}
           format: json
