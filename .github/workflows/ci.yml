@@ -1,0 +1,200 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - run: uv sync
+      - run: uv run ruff check .
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - run: uv sync
+      - run: uv run mypy src/
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - run: uv sync
+      # TODO: enforce --cov-fail-under=80 after Tasks 4-6 add feature and model code.
+      - run: uv run pytest --cov=src --cov-report=xml --cov-report=term-missing
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+  data-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - run: uv sync
+      # The configured remote is ../dvc-storage/loancheck, which is unavailable on
+      # hosted GitHub runners. This succeeds on a self-hosted runner with that
+      # directory restored, but requires a cloud remote (S3/Azure/GDrive) for CI.
+      - name: Pull DVC data (requires reachable remote)
+        continue-on-error: true
+        run: uv run dvc pull
+      - name: Run raw data quality checks
+        if: ${{ hashFiles('data/raw/loan_train.csv') != '' && hashFiles('data/raw/loan_scoring.csv') != '' }}
+        run: uv run python scripts/run_data_checks.py
+      - name: Explain unavailable raw data
+        if: ${{ hashFiles('data/raw/loan_train.csv') == '' || hashFiles('data/raw/loan_scoring.csv') == '' }}
+        run: echo "::warning::Raw data is unavailable. The configured local DVC remote cannot be reached by hosted CI until a cloud remote is configured."
+      # The static Kaggle split's income PSI warnings are expected and documented in docs/model_card.md.
+      - name: Enforce data quality status
+        if: ${{ hashFiles('reports/data_quality.json') != '' }}
+        run: |
+          status="$(uv run python -c "import json; print(json.load(open('reports/data_quality.json'))['overall_status'])")"
+          echo "Data quality status: ${status}"
+          if [ "${status}" = "fail" ]; then
+            exit 1
+          fi
+          if [ "${status}" = "warn" ]; then
+            echo "::warning::Data quality status is warn; see reports/data_quality.json."
+          fi
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && hashFiles('reports/data_quality.json') != '' }}
+        with:
+          name: data-quality-report
+          path: reports/data_quality.json
+
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - run: uv sync
+      # The configured local remote cannot be reached by hosted GitHub runners.
+      # A cloud remote is required here, or a self-hosted runner must restore
+      # ../dvc-storage/loancheck before this workflow runs.
+      - name: Pull DVC data (requires reachable remote)
+        continue-on-error: true
+        run: uv run dvc pull
+      - name: Reproduce DVC pipeline
+        if: ${{ hashFiles('data/raw/loan_train.csv') != '' }}
+        run: uv run dvc repro
+      - name: Explain unavailable DVC data
+        if: ${{ hashFiles('data/raw/loan_train.csv') == '' }}
+        run: echo "::warning::DVC pipeline reproduction skipped because the configured local remote is unreachable from hosted CI. Configure a cloud remote to enable this step."
+
+  docker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - run: uv sync
+      - name: Pull DVC-tracked model artifacts (requires reachable remote)
+        continue-on-error: true
+        run: uv run dvc pull
+      - name: Check model artifact availability
+        id: model-artifact
+        run: |
+          if [ -f models/missing_value_stats.json ]; then
+            echo "artifact_available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "artifact_available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Docker build, scan, SBOM, and push are skipped because the configured local DVC remote is unreachable from hosted CI. Configure a cloud remote to enable these steps."
+          fi
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        if: ${{ steps.model-artifact.outputs.artifact_available == 'true' }}
+        run: docker build -t loancheck:${{ github.sha }} .
+      - name: Scan image with Trivy
+        if: ${{ steps.model-artifact.outputs.artifact_available == 'true' }}
+        # Pinned to v0.35.0, the first release protected by GitHub's immutable-release feature after the March 2026 trivy-action
+        # supply-chain compromise (GHSA-69fq-xp46-6x23) — do not reference an unprefixed version tag older than this.
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: loancheck:${{ github.sha }}
+          format: json
+          output: trivy-report.json
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Upload Trivy report
+        if: ${{ always() && steps.model-artifact.outputs.artifact_available == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.json
+          if-no-files-found: warn
+      - name: Generate SPDX SBOM
+        if: ${{ always() && steps.model-artifact.outputs.artifact_available == 'true' }}
+        uses: anchore/sbom-action@v0
+        with:
+          image: loancheck:${{ github.sha }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+      - name: Upload SBOM
+        if: ${{ always() && steps.model-artifact.outputs.artifact_available == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json
+          if-no-files-found: warn
+      # No container smoke test: API startup requires the MLflow champion model, but
+      # hosted CI cannot reach the local MLflow server. This test is run locally.
+      - name: Log in to GitHub Container Registry
+        if: ${{ steps.model-artifact.outputs.artifact_available == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag and push image
+        if: ${{ steps.model-artifact.outputs.artifact_available == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: |
+          docker tag loancheck:${{ github.sha }} ghcr.io/vishaltelukoti/loancheck:${{ github.sha }}
+          docker tag loancheck:${{ github.sha }} ghcr.io/vishaltelukoti/loancheck:latest
+          docker push ghcr.io/vishaltelukoti/loancheck:${{ github.sha }}
+          docker push ghcr.io/vishaltelukoti/loancheck:latest

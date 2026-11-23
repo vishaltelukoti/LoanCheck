@@ -1,1 +1,66 @@
 
+stages:
+  ingest:
+    cmd: uv run python scripts/run_ingest.py
+    deps:
+      - data/raw/loan_train.csv
+      - scripts/run_ingest.py
+      - src/loancheck/data/contracts.py
+    outs:
+      - data/interim/loan_train_clean.csv
+
+  validate:
+    cmd: uv run python scripts/run_data_checks.py
+    deps:
+      - data/interim/loan_train_clean.csv
+      - data/raw/loan_scoring.csv
+      - scripts/run_data_checks.py
+      - src/loancheck/data/contracts.py
+      - src/loancheck/data/missing_values.py
+      - src/loancheck/data/drift.py
+    params:
+      - drift_psi_warn
+      - drift_psi_fail
+    outs:
+      - reports/data_quality.json
+
+  featurize:
+    cmd: uv run python scripts/run_featurize.py
+    deps:
+      - data/interim/loan_train_clean.csv
+      - scripts/run_featurize.py
+      - src/loancheck/features/build_features.py
+      - src/loancheck/data/contracts.py
+      - src/loancheck/data/missing_values.py
+    params:
+      - random_seed
+      - test_size
+    outs:
+      - data/processed/train_features.csv
+      - data/processed/test_features.csv
+      - data/processed/missing_value_stats.json
+
+  train:
+    cmd: uv run python scripts/run_train.py
+    deps:
+      - data/processed/train_features.csv
+      - data/processed/missing_value_stats.json
+      - scripts/run_train.py
+      - src/loancheck/models/train.py
+    params:
+      - model
+      - random_seed
+    outs:
+      - models/model.pkl
+      - models/missing_value_stats.json
+
+  evaluate:
+    cmd: uv run python scripts/run_evaluate.py
+    deps:
+      - data/processed/test_features.csv
+      - models/model.pkl
+      - scripts/run_evaluate.py
+      - src/loancheck/models/evaluate.py
+    metrics:
+      - reports/metrics.json:
+          cache: false

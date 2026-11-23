@@ -1,1 +1,14 @@
 
+random_seed: 42
+test_size: 0.2
+drift_psi_warn: 0.1
+drift_psi_fail: 0.25
+missingness_limit_pct: 10
+model:
+  quality_bar_accuracy: 0.78
+  quality_bar_roc_auc: 0.75
+  hyperparameters:
+    logistic_regression:
+      max_iter: 1000
+    random_forest:
+      n_estimators: 200
