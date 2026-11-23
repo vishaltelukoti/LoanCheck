@@ -13,7 +13,16 @@ def test_train_model_returns_fitted_pipeline_with_predict() -> None:
     )
     target = pd.Series(["N", "N", "Y", "Y"])
 
-    pipeline = train_model(features, target, "logistic_regression", random_seed=42)
+    pipeline = train_model(
+        features,
+        target,
+        "logistic_regression",
+        random_seed=42,
+        hyperparameters={
+            "logistic_regression": {"max_iter": 100},
+            "random_forest": {"n_estimators": 10},
+        },
+    )
 
     assert hasattr(pipeline, "predict")
     assert len(pipeline.predict(features)) == len(features)

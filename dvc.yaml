@@ -18,6 +18,9 @@ stages:
       - src/loancheck/data/contracts.py
       - src/loancheck/data/missing_values.py
       - src/loancheck/data/drift.py
+    params:
+      - drift_psi_warn
+      - drift_psi_fail
     outs:
       - reports/data_quality.json
 

@@ -1,5 +1,6 @@
 """Train and compare LoanCheck classifiers with MLflow experiment tracking."""
 
+import logging
 import os
 import sys
 import tempfile
@@ -17,9 +18,12 @@ from mlflow.models import infer_signature
 from sklearn.metrics import ConfusionMatrixDisplay
 
 from loancheck.config import Settings
+from loancheck.logging import configure_logging
 from loancheck.models.evaluate import evaluate_model
 from loancheck.models.lineage import get_dvc_data_version, get_git_commit
 from loancheck.models.train import train_model
+
+LOGGER = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TRAIN_FEATURES_PATH = PROJECT_ROOT / "data" / "processed" / "train_features.csv"
@@ -46,7 +50,7 @@ class ModelResult:
 
 def _log_diagnostic_artifacts(
     pipeline: object,
-    X_test: pd.DataFrame,
+    x_test: pd.DataFrame,
     y_test: pd.Series,
     model_type: str,
 ) -> None:
@@ -64,7 +68,7 @@ def _log_diagnostic_artifacts(
         importance_path = artifact_dir / "feature_importance.png"
 
         figure, axis = plt.subplots(figsize=(6, 5))
-        ConfusionMatrixDisplay.from_predictions(y_test, pipeline.predict(X_test), ax=axis)
+        ConfusionMatrixDisplay.from_predictions(y_test, pipeline.predict(x_test), ax=axis)
         figure.tight_layout()
         figure.savefig(confusion_path, dpi=150)
         plt.close(figure)
@@ -90,7 +94,7 @@ def _promote_challenger(results: list[ModelResult], settings: Settings) -> tuple
         and result.metrics["roc_auc"] >= settings.model_quality_bar_roc_auc
     ]
     if not qualifying:
-        print("No model met the configured accuracy and ROC-AUC quality bars.")
+        LOGGER.warning("No model met the configured accuracy and ROC-AUC quality bars.")
         return None, False
 
     challenger = max(qualifying, key=lambda result: result.metrics["accuracy"])
@@ -102,16 +106,16 @@ def _promote_challenger(results: list[ModelResult], settings: Settings) -> tuple
         champion = client.get_model_version_by_alias("loancheck", "champion")
     except MlflowException:
         client.set_registered_model_alias("loancheck", "champion", registered_model.version)
-        print("No champion existed; promoted the challenger to champion.")
+        LOGGER.info("No champion existed; promoted the challenger to champion.")
         return challenger.model_type, True
 
     champion_accuracy = client.get_run(champion.run_id).data.metrics.get("accuracy", 0.0)
     if challenger.metrics["accuracy"] > champion_accuracy:
         client.set_registered_model_alias("loancheck", "champion", registered_model.version)
-        print("Challenger beat champion accuracy and was promoted.")
+        LOGGER.info("Challenger beat champion accuracy and was promoted.")
         return challenger.model_type, True
 
-    print(
+    LOGGER.info(
         "Challenger was not promoted: its accuracy "
         f"({challenger.metrics['accuracy']:.4f}) does not exceed champion accuracy "
         f"({champion_accuracy:.4f})."
@@ -119,7 +123,9 @@ def _promote_challenger(results: list[ModelResult], settings: Settings) -> tuple
     return challenger.model_type, False
 
 
-def _print_summary(results: list[ModelResult], challenger: str | None, champion_changed: bool) -> None:
+def _print_summary(
+    results: list[ModelResult], challenger: str | None, champion_changed: bool
+) -> None:
     """Print a compact model-comparison summary for local and CI logs."""
     print("\nModel comparison")
     print("model_type           accuracy  precision  recall    f1        roc_auc")
@@ -136,6 +142,7 @@ def _print_summary(results: list[ModelResult], challenger: str | None, champion_
 
 def main() -> None:
     """Train, evaluate, log, register, and compare the three baseline model types."""
+    configure_logging()
     params = yaml.safe_load(PARAMS_PATH.read_text(encoding="utf-8"))
     settings = Settings()
     os.environ["MLFLOW_TRACKING_URI"] = settings.mlflow_tracking_uri
@@ -151,9 +158,9 @@ def main() -> None:
         MISSING_VALUE_STATS_INPUT_PATH.read_text(encoding="utf-8"),
         encoding="utf-8",
     )
-    X_train = training_data.drop(columns="Loan_Status")
+    x_train = training_data.drop(columns="Loan_Status")
     y_train = training_data["Loan_Status"]
-    X_test = test_data.drop(columns="Loan_Status")
+    x_test = test_data.drop(columns="Loan_Status")
     y_test = test_data["Loan_Status"]
     dataset = mlflow.data.from_pandas(training_data, source=str(TRAIN_FEATURES_PATH))
     results: list[ModelResult] = []
@@ -175,16 +182,22 @@ def main() -> None:
                 }
             )
             mlflow.log_input(dataset, context="training")
-            pipeline = train_model(X_train, y_train, model_type, params["random_seed"])
-            metrics = evaluate_model(pipeline, X_test, y_test)
+            pipeline = train_model(
+                x_train,
+                y_train,
+                model_type,
+                params["random_seed"],
+                params["model"]["hyperparameters"],
+            )
+            metrics = evaluate_model(pipeline, x_test, y_test)
             mlflow.log_metrics(metrics)
-            _log_diagnostic_artifacts(pipeline, X_test, y_test, model_type)
-            signature = infer_signature(X_train, pipeline.predict(X_train))
+            _log_diagnostic_artifacts(pipeline, x_test, y_test, model_type)
+            signature = infer_signature(x_train, pipeline.predict(x_train))
             mlflow.sklearn.log_model(
                 pipeline,
                 name="model",
                 signature=signature,
-                input_example=X_train.head(1),
+                input_example=x_train.head(1),
                 # Tree estimators include trusted scikit-learn C-extension state that
                 # MLflow's default skops serializer refuses to load in MLflow 3.x.
                 serialization_format=mlflow.sklearn.SERIALIZATION_FORMAT_PICKLE,

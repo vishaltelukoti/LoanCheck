@@ -5,7 +5,19 @@ import pandas as pd
 
 
 def compute_psi(train: pd.Series, scoring: pd.Series, bins: int = 10) -> float:
-    """Compute Population Stability Index for two numeric distributions."""
+    """Compute Population Stability Index for two numeric distributions.
+
+    Args:
+        train: Reference numeric values from training data.
+        scoring: Numeric values from the scoring population.
+        bins: Number of equal-width bins used for the comparison.
+
+    Returns:
+        The non-negative PSI value.
+
+    Raises:
+        ValueError: If fewer than two bins are requested or a series has no values.
+    """
     if bins < 2:
         raise ValueError("bins must be at least 2")
 
@@ -27,20 +39,46 @@ def compute_psi(train: pd.Series, scoring: pd.Series, bins: int = 10) -> float:
     epsilon = 1e-6
     train_proportions = np.maximum(train_counts / train_counts.sum(), epsilon)
     scoring_proportions = np.maximum(scoring_counts / scoring_counts.sum(), epsilon)
-    return float(np.sum((scoring_proportions - train_proportions) * np.log(scoring_proportions / train_proportions)))
+    return float(
+        np.sum(
+            (scoring_proportions - train_proportions)
+            * np.log(scoring_proportions / train_proportions)
+        )
+    )
 
 
 def check_drift(
     train_df: pd.DataFrame, scoring_df: pd.DataFrame, columns: list[str]
 ) -> dict[str, float]:
-    """Return numeric PSI values for each requested column."""
+    """Compute numeric PSI values for selected columns.
+
+    Args:
+        train_df: Reference training dataframe.
+        scoring_df: Scoring dataframe to compare with the reference.
+        columns: Numeric column names to evaluate.
+
+    Returns:
+        A PSI value keyed by column name.
+    """
     return {column: compute_psi(train_df[column], scoring_df[column]) for column in columns}
 
 
-def drift_status(psi: float) -> str:
-    """Classify a PSI value using LoanCheck's documented thresholds."""
-    if psi < 0.1:
+def drift_status(psi: float, warn_threshold: float, fail_threshold: float) -> str:
+    """Classify a PSI value using LoanCheck's documented thresholds.
+
+    Args:
+        psi: Population Stability Index value to classify.
+        warn_threshold: PSI boundary at which status changes from pass to warn.
+        fail_threshold: PSI boundary at which status changes from warn to fail.
+
+    Returns:
+        ``pass``, ``warn``, or ``fail``.
+    """
+    if warn_threshold >= fail_threshold:
+        msg = "The PSI warning threshold must be lower than the failure threshold."
+        raise ValueError(msg)
+    if psi < warn_threshold:
         return "pass"
-    if psi < 0.25:
+    if psi < fail_threshold:
         return "warn"
     return "fail"
