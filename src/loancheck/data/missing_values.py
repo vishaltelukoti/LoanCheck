@@ -4,11 +4,13 @@
 # categorical and binary fields use their mode to retain their most common value.
 
 from numbers import Real
+from pathlib import Path
 from typing import cast
 
 import pandas as pd
+import yaml
 
-MAX_MISSING_PERCENT = 10.0
+PARAMS_PATH = Path(__file__).resolve().parents[3] / "params.yaml"
 MODE_COLUMNS = ("Credit_History", "Self_Employed", "Gender", "Loan_Amount_Term")
 MEDIAN_COLUMN = "LoanAmount"
 
@@ -36,12 +38,14 @@ def _mode_value(series: pd.Series) -> object:
 
 def _validate_missingness(df: pd.DataFrame) -> None:
     """Raise when raw data exceeds the permitted missing-value threshold."""
+    params = yaml.safe_load(PARAMS_PATH.read_text(encoding="utf-8"))
+    missingness_limit = float(params["missingness_limit_pct"])
     missing = report_missing(df)
     over_limit = {
-        column: percent for column, percent in missing.items() if percent > MAX_MISSING_PERCENT
+        column: percent for column, percent in missing.items() if percent > missingness_limit
     }
     if over_limit:
-        msg = f"Missingness exceeds {MAX_MISSING_PERCENT}%: {over_limit}"
+        msg = f"Missingness exceeds {missingness_limit}%: {over_limit}"
         raise ValueError(msg)
 
 

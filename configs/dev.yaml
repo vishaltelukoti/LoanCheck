@@ -4,3 +4,4 @@ mlflow_tracking_uri: http://localhost:5000
 model_quality_bar_accuracy: 0.70
 model_quality_bar_roc_auc: 0.65
 data_dir: data/raw
+approval_threshold: 0.5

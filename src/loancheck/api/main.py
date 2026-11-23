@@ -69,7 +69,7 @@ class PredictionResponse(BaseModel):
 
     Attributes:
         approval_probability: Champion model probability for approval.
-        approved: Whether the probability meets the 0.5 decision threshold.
+        approved: Whether the probability meets the configured decision threshold.
     """
 
     approval_probability: float
@@ -119,6 +119,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     """Configure tracking and load the champion before accepting requests."""
     settings = Settings()
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    application.state.settings = settings
     application.state.champion_model = _load_champion_model()
     application.state.missing_value_stats = _load_missing_value_stats()
     yield
@@ -155,8 +156,9 @@ def predict(application: LoanApplication, request: Request) -> PredictionRespons
     missing_value_stats = cast(dict[str, object], request.app.state.missing_value_stats)
     features = build_features(pd.DataFrame([raw_application]), stats=missing_value_stats)
     champion_model = cast(ProbabilityModel, request.app.state.champion_model)
+    settings = cast(Settings, request.app.state.settings)
     probability = float(champion_model.predict_proba(features)[0, 1])
     return PredictionResponse(
         approval_probability=probability,
-        approved=probability >= 0.5,
+        approved=probability >= settings.approval_threshold,
     )

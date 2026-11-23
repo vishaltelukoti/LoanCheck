@@ -41,6 +41,7 @@ class Settings(BaseSettings):
         model_quality_bar_accuracy: Minimum accuracy required for promotion.
         model_quality_bar_roc_auc: Minimum ROC-AUC required for promotion.
         data_dir: Raw data directory configured for the environment.
+        approval_threshold: Probability required for an approval decision.
     """
 
     environment: str
@@ -49,6 +50,7 @@ class Settings(BaseSettings):
     model_quality_bar_accuracy: float
     model_quality_bar_roc_auc: float
     data_dir: str
+    approval_threshold: float
 
     def __init__(self, environment: str | None = None) -> None:
         """Load settings from the selected YAML file and environment overrides.

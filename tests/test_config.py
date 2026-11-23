@@ -12,3 +12,4 @@ def test_loads_development_settings(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.log_level == "DEBUG"
     assert settings.model_quality_bar_accuracy == 0.70
     assert settings.mlflow_tracking_uri == "http://localhost:5000"
+    assert settings.approval_threshold == 0.5
