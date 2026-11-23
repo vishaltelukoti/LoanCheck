@@ -7,7 +7,17 @@ from pydantic_settings import BaseSettings
 
 
 def _read_yaml_settings(path: Path) -> dict[str, str]:
-    """Read the simple key/value YAML used for LoanCheck environment settings."""
+    """Read the simple key/value YAML used for LoanCheck environment settings.
+
+    Args:
+        path: YAML configuration file to parse.
+
+    Returns:
+        String-valued settings keyed by configuration field name.
+
+    Raises:
+        ValueError: If a non-comment line is not a key/value setting.
+    """
     values: dict[str, str] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         stripped_line = line.strip()
@@ -22,7 +32,16 @@ def _read_yaml_settings(path: Path) -> dict[str, str]:
 
 
 class Settings(BaseSettings):
-    """Settings for the environment selected by ``ENVIRONMENT`` (default: ``dev``)."""
+    """Settings for the environment selected by ``ENVIRONMENT`` (default: ``dev``).
+
+    Attributes:
+        environment: Selected deployment environment.
+        log_level: Application logging level.
+        mlflow_tracking_uri: MLflow tracking-server location.
+        model_quality_bar_accuracy: Minimum accuracy required for promotion.
+        model_quality_bar_roc_auc: Minimum ROC-AUC required for promotion.
+        data_dir: Raw data directory configured for the environment.
+    """
 
     environment: str
     log_level: str
@@ -32,6 +51,15 @@ class Settings(BaseSettings):
     data_dir: str
 
     def __init__(self, environment: str | None = None) -> None:
+        """Load settings from the selected YAML file and environment overrides.
+
+        Args:
+            environment: Optional environment name; otherwise uses ``ENVIRONMENT``.
+
+        Raises:
+            FileNotFoundError: If the selected configuration file does not exist.
+            ValueError: If the configuration file has invalid setting syntax.
+        """
         environment_name = environment or os.environ.get("ENVIRONMENT", "dev")
         project_root = Path(__file__).resolve().parents[2]
         config_path = project_root / "configs" / f"{environment_name}.yaml"

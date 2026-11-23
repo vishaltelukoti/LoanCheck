@@ -11,7 +11,9 @@ LOAN_APPLICATION_SCHEMA = pa.DataFrameSchema(
         "Loan_ID": pa.Column(pa.String, unique=True),
         "Gender": pa.Column(pa.String, nullable=True, checks=pa.Check.isin(["Male", "Female"])),
         "Married": pa.Column(pa.String, nullable=True, checks=pa.Check.isin(["Yes", "No"])),
-        "Dependents": pa.Column(pa.String, nullable=True, checks=pa.Check.isin(["0", "1", "2", "3+"])),
+        "Dependents": pa.Column(
+            pa.String, nullable=True, checks=pa.Check.isin(["0", "1", "2", "3+"])
+        ),
         "Education": pa.Column(pa.String, checks=pa.Check.isin(["Graduate", "Not Graduate"])),
         "Self_Employed": pa.Column(pa.String, nullable=True, checks=pa.Check.isin(["Yes", "No"])),
         "ApplicantIncome": pa.Column(pa.Int, checks=pa.Check.greater_than_or_equal_to(0)),
@@ -21,7 +23,9 @@ LOAN_APPLICATION_SCHEMA = pa.DataFrameSchema(
         "Credit_History": pa.Column(
             pa.Float, nullable=True, checks=pa.Check.isin([0.0, 1.0])
         ),
-        "Property_Area": pa.Column(pa.String, checks=pa.Check.isin(["Urban", "Semiurban", "Rural"])),
+        "Property_Area": pa.Column(
+            pa.String, checks=pa.Check.isin(["Urban", "Semiurban", "Rural"])
+        ),
         "Loan_Status": pa.Column(pa.String, required=False, checks=pa.Check.isin(["Y", "N"])),
     },
     strict=True,
@@ -30,7 +34,11 @@ LOAN_APPLICATION_SCHEMA = pa.DataFrameSchema(
 
 
 def get_feature_columns() -> list[str]:
-    """Return the current hard-coded, non-leaking feature column list."""
+    """Return the current hard-coded, non-leaking feature column list.
+
+    Returns:
+        Approved raw feature names, excluding identifiers, target, and Gender.
+    """
     return [
         "Married",
         "Dependents",
@@ -46,7 +54,14 @@ def get_feature_columns() -> list[str]:
 
 
 def validate_schema(df: pd.DataFrame) -> pa.errors.SchemaErrors | None:
-    """Validate a raw dataset, returning schema errors instead of raising them."""
+    """Validate a raw dataset, returning errors instead of raising them.
+
+    Args:
+        df: Raw loan application dataframe to validate.
+
+    Returns:
+        Pandera schema errors on validation failure; otherwise ``None``.
+    """
     try:
         LOAN_APPLICATION_SCHEMA.validate(df, lazy=True)
     except pa.errors.SchemaErrors as errors:

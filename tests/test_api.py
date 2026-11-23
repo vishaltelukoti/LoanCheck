@@ -13,7 +13,9 @@ from loancheck.api import main
 class FakeChampionModel:
     """Deterministic replacement for the MLflow-loaded classifier in API tests."""
 
-    def predict_proba(self, features: pd.DataFrame) -> np.ndarray[tuple[int, int], np.dtype[np.float64]]:
+    def predict_proba(
+        self, features: pd.DataFrame
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.float64]]:
         """Return one fixed positive-class probability per requested row."""
         return np.tile(np.array([[0.2, 0.8]]), (len(features), 1))
 

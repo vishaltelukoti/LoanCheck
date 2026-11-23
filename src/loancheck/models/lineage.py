@@ -10,7 +10,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 def get_git_commit() -> str:
-    """Return the current Git commit, appending ``-dirty`` for local changes."""
+    """Return the current Git commit, appending ``-dirty`` for local changes.
+
+    Returns:
+        Current commit hash, optionally suffixed with ``-dirty``.
+
+    Raises:
+        RuntimeError: If the project is not a usable Git repository.
+    """
     try:
         commit = subprocess.run(
             ["git", "rev-parse", "HEAD"],
@@ -39,7 +46,19 @@ def get_git_commit() -> str:
 
 
 def get_dvc_data_version(stage: str = "train") -> str:
-    """Return the MD5 of the first dependency tracked for a DVC stage."""
+    """Return the first dependency MD5 tracked for a DVC stage.
+
+    Args:
+        stage: Name of the DVC stage to inspect.
+
+    Returns:
+        The dependency MD5 string for the stage.
+
+    Raises:
+        FileNotFoundError: If the DVC lockfile does not exist.
+        ValueError: If the stage has no dependency MD5.
+        TypeError: If the stored dependency MD5 is not a string.
+    """
     lock_path = PROJECT_ROOT / "dvc.lock"
     if not lock_path.is_file():
         raise FileNotFoundError(f"DVC lockfile does not exist: {lock_path}")

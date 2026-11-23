@@ -25,16 +25,16 @@ def main() -> None:
     target = raw_data["Loan_Status"]
     raw_features = raw_data.drop(columns="Loan_Status")
     # Split raw data first: fitting missing-value behavior on all rows would leak test information.
-    X_train_raw, X_test_raw, y_train, y_test = train_test_split(
+    x_train_raw, x_test_raw, y_train, y_test = train_test_split(
         raw_features,
         target,
         test_size=params["test_size"],
         random_state=params["random_seed"],
         stratify=target,
     )
-    missing_value_stats = fit_missing_value_stats(X_train_raw)
-    train_features = build_features(X_train_raw, stats=missing_value_stats)
-    test_features = build_features(X_test_raw, stats=missing_value_stats)
+    missing_value_stats = fit_missing_value_stats(x_train_raw)
+    train_features = build_features(x_train_raw, stats=missing_value_stats)
+    test_features = build_features(x_test_raw, stats=missing_value_stats)
     train_features["Loan_Status"] = y_train.to_numpy()
     test_features["Loan_Status"] = y_test.to_numpy()
     TRAIN_FEATURES_PATH.parent.mkdir(parents=True, exist_ok=True)

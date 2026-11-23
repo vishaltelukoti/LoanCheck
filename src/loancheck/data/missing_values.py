@@ -14,7 +14,14 @@ MEDIAN_COLUMN = "LoanAmount"
 
 
 def report_missing(df: pd.DataFrame) -> dict[str, float]:
-    """Return the percentage of missing entries for every column."""
+    """Calculate missing-value percentages for every dataframe column.
+
+    Args:
+        df: Dataframe whose missingness will be measured.
+
+    Returns:
+        Percentage missing for each column.
+    """
     return {str(column): float(value) for column, value in (df.isna().mean() * 100).items()}
 
 
@@ -30,14 +37,26 @@ def _mode_value(series: pd.Series) -> object:
 def _validate_missingness(df: pd.DataFrame) -> None:
     """Raise when raw data exceeds the permitted missing-value threshold."""
     missing = report_missing(df)
-    over_limit = {column: percent for column, percent in missing.items() if percent > MAX_MISSING_PERCENT}
+    over_limit = {
+        column: percent for column, percent in missing.items() if percent > MAX_MISSING_PERCENT
+    }
     if over_limit:
         msg = f"Missingness exceeds {MAX_MISSING_PERCENT}%: {over_limit}"
         raise ValueError(msg)
 
 
 def fit_missing_value_stats(df: pd.DataFrame) -> dict[str, object]:
-    """Fit imputation values from one dataset after validating raw missingness."""
+    """Fit imputation values from one dataset after validating missingness.
+
+    Args:
+        df: Training dataframe used to derive imputation statistics.
+
+    Returns:
+        Mode statistics for categorical fields and a median for ``LoanAmount``.
+
+    Raises:
+        ValueError: If missingness exceeds the permitted threshold or no statistic exists.
+    """
     _validate_missingness(df)
     stats = {column: _mode_value(df[column]) for column in MODE_COLUMNS}
     loan_amount_median = df[MEDIAN_COLUMN].median()
@@ -60,7 +79,19 @@ def _get_stat(stats: dict[str, object], column: str) -> str | float:
 
 
 def apply_missing_value_fill(df: pd.DataFrame, stats: dict[str, object]) -> pd.DataFrame:
-    """Return a copy imputed with previously fitted values, including one-row inputs."""
+    """Apply previously fitted imputation values to a dataframe copy.
+
+    Args:
+        df: Dataframe to impute, including possible one-row API inputs.
+        stats: Training-derived imputation statistics for required raw columns.
+
+    Returns:
+        A copied dataframe with missing supported fields filled.
+
+    Raises:
+        ValueError: If a required statistic is absent.
+        TypeError: If a supplied statistic has an unsupported type.
+    """
     expected_columns = (*MODE_COLUMNS, MEDIAN_COLUMN)
     missing_stats = [column for column in expected_columns if column not in stats]
     if missing_stats:
@@ -75,5 +106,15 @@ def apply_missing_value_fill(df: pd.DataFrame, stats: dict[str, object]) -> pd.D
 
 
 def fill_missing(df: pd.DataFrame) -> pd.DataFrame:
-    """Fit then apply imputation values for callers that do not need split control."""
+    """Fit and apply imputation values for callers without split control.
+
+    Args:
+        df: Dataframe from which to fit and apply missing-value statistics.
+
+    Returns:
+        A copy with supported missing values filled.
+
+    Raises:
+        ValueError: If missingness exceeds the permitted threshold.
+    """
     return apply_missing_value_fill(df, fit_missing_value_stats(df))

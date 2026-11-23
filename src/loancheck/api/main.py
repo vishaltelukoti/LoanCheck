@@ -21,14 +21,36 @@ MISSING_VALUE_STATS_PATH = PROJECT_ROOT / "models" / "missing_value_stats.json"
 
 
 class ProbabilityModel(Protocol):
-    """Minimum prediction interface required from the registered sklearn model."""
+    """Minimum probability-prediction interface required from the champion model."""
 
-    def predict_proba(self, features: pd.DataFrame) -> np.ndarray[tuple[int, int], np.dtype[np.float64]]:
-        """Return class probabilities for the supplied feature rows."""
+    def predict_proba(
+        self, features: pd.DataFrame
+    ) -> np.ndarray[tuple[int, int], np.dtype[np.float64]]:
+        """Return class probabilities for supplied feature rows.
+
+        Args:
+            features: Preprocessed model feature rows.
+
+        Returns:
+            A two-column array of negative and positive class probabilities.
+        """
 
 
 class LoanApplication(BaseModel):
-    """The ten approved, non-sensitive raw features accepted by the prediction API."""
+    """The ten approved, non-sensitive raw features accepted by the API.
+
+    Attributes:
+        Married: Applicant marital status, when supplied.
+        Dependents: Applicant dependent count, when supplied.
+        Education: Applicant education category.
+        Self_Employed: Self-employment status, when supplied.
+        ApplicantIncome: Applicant monthly income.
+        CoapplicantIncome: Co-applicant monthly income.
+        LoanAmount: Requested loan amount, when supplied.
+        Loan_Amount_Term: Requested loan term, when supplied.
+        Credit_History: Credit-history indicator, when supplied.
+        Property_Area: Property-area category.
+    """
 
     Married: Literal["Yes", "No"] | None = None
     Dependents: Literal["0", "1", "2", "3+"] | None = None
@@ -43,7 +65,12 @@ class LoanApplication(BaseModel):
 
 
 class PredictionResponse(BaseModel):
-    """A binary approval decision and the champion model's positive-class probability."""
+    """A binary approval decision and positive-class probability.
+
+    Attributes:
+        approval_probability: Champion model probability for approval.
+        approved: Whether the probability meets the 0.5 decision threshold.
+    """
 
     approval_probability: float
     approved: bool
@@ -102,13 +129,25 @@ app = FastAPI(title="LoanCheck API", lifespan=lifespan)
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    """Return a simple liveness result."""
+    """Return a simple liveness result.
+
+    Returns:
+        An ``ok`` service-status payload.
+    """
     return {"status": "ok"}
 
 
 @app.post("/predict", response_model=PredictionResponse)
 def predict(application: LoanApplication, request: Request) -> PredictionResponse:
-    """Return the champion approval probability for one loan application."""
+    """Return the champion approval probability for one loan application.
+
+    Args:
+        application: Validated raw application fields from the request body.
+        request: FastAPI request that carries startup-loaded application state.
+
+    Returns:
+        Probability and thresholded approval decision from the champion model.
+    """
     raw_application = application.model_dump()
     # Gender is deliberately excluded from the public contract and model features.
     # Its persisted training-mode statistic fills this internal preprocessing column.

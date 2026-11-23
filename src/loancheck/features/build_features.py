@@ -10,10 +10,18 @@ ENGINEERED_FEATURE_COLUMNS = ["TotalIncome", "LoanAmountToIncomeRatio"]
 
 
 def build_features(df: pd.DataFrame, stats: dict[str, object] | None = None) -> pd.DataFrame:
-    """Fill expected gaps and return approved raw and engineered features.
+    """Build approved raw and engineered model features.
 
-    When supplied, ``stats`` must have been fitted on the training split so callers
-    can apply identical imputation at evaluation and serving time.
+    Args:
+        df: Raw loan application dataframe.
+        stats: Optional training-derived imputation statistics. When omitted, they
+            are fitted from ``df`` for backward-compatible local use.
+
+    Returns:
+        Approved non-sensitive raw features plus engineered income features.
+
+    Raises:
+        ValueError: If required imputation statistics cannot be fitted or applied.
     """
     fitted_stats = fit_missing_value_stats(df) if stats is None else stats
     filled = apply_missing_value_fill(df, fitted_stats)
