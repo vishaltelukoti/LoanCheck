@@ -78,6 +78,17 @@ loancheck/
 └── Dockerfile
 ```
 
+## Dataset
+
+LoanCheck uses the loan prediction practice dataset, which contains applicant demographics, income, loan details, credit history, property area, and loan approval status. A public copy is available on Kaggle: [Loan Prediction Problem Dataset](https://www.kaggle.com/datasets/altruistdelhite04/loan-prediction-problem-dataset). The repository does not record which Kaggle upload was originally used.
+
+| Project file | Records | Description |
+| --- | ---: | --- |
+| `data/raw/loan_train.csv` | 614 | Labeled applications with `Loan_Status` (`Y` for approved, `N` for rejected). |
+| `data/raw/loan_scoring.csv` | 367 | Unlabeled applications without `Loan_Status`, used for scoring and data-quality comparisons. |
+
+The raw files are tracked with DVC rather than stored directly in Git. Run `uv run dvc pull` when the configured DVC remote is accessible. The labeled data is split into training and evaluation sets by the pipeline.
+
 ## Machine Learning Pipeline
 
 The pipeline compares logistic regression, decision tree, and random forest classifiers. The current quality bars in `params.yaml` are accuracy ≥ 0.78 and ROC-AUC ≥ 0.75.
